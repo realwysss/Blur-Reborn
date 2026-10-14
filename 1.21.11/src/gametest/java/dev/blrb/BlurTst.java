@@ -40,6 +40,20 @@ public class BlurTst implements FabricClientGameTest {
 		Blur.tst = 0f;
 	}
 
+	void mode(int m) {
+		c.runOnClient(x -> Cfg.c.mode = m);
+	}
+
+	void snap(String n) {
+		tp(0.5, 0);
+		c.waitTicks(15);
+		Blur.frz = true;
+		tp(0.5, 14);
+		c.waitTicks(2);
+		c.takeScreenshot(n);
+		Blur.frz = false;
+	}
+
 	void strafe(String n, boolean on, int pct) {
 		cfg(on, pct);
 		tp(0.5, 0);
@@ -53,7 +67,7 @@ public class BlurTst implements FabricClientGameTest {
 		try (TestSingleplayerContext sp = ctx.worldBuilder().create()) {
 			s = sp;
 			ctx.waitTicks(40);
-			ck(Cfg.c.on && Cfg.c.pct == 50, "defaults are on at 50%");
+			ck(Cfg.c.on && Cfg.c.pct == 50 && Cfg.c.mode == 1, "defaults are on at 50%");
 			Cfg.c.pct = 0;
 			ck(!Cfg.on(), "0% is off");
 			Cfg.c = new Cfg();
@@ -76,13 +90,21 @@ public class BlurTst implements FabricClientGameTest {
 			}
 			ctx.waitTicks(20);
 			still("a_still_off", false, 100);
-			still("b_still_on", true, 100);
-			turn("c_turn_off", false, 100);
-			turn("d_turn_100", true, 100);
-			turn("e_turn_50", true, 50);
-			turn("f_turn_20", true, 20);
-			strafe("g_strafe_off", false, 100);
-			strafe("h_strafe_100", true, 100);
+			for (int m = 0; m < 3; m++) {
+				mode(m);
+				still("m" + m + "_still", true, 100);
+				if (m == 0) {
+					cfg(true, 100);
+					snap("m0_turn_100");
+					cfg(true, 50);
+					snap("m0_turn_50");
+				} else {
+					turn("m" + m + "_turn_100", true, 100);
+					turn("m" + m + "_turn_50", true, 50);
+					strafe("m" + m + "_strafe_100", true, 100);
+				}
+			}
+			turn("z_turn_off", false, 100);
 			ctx.runOnClient(m -> Cfg.c = new Cfg());
 			ctx.runOnClient(m -> m.setScreen(CfgScr.mk(null)));
 			ctx.waitTicks(10);

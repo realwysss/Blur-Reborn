@@ -1,6 +1,7 @@
 #version 330
 
 uniform sampler2D InSampler;
+uniform sampler2D PrevSampler;
 uniform sampler2D DepthSampler;
 
 layout(std140) uniform BlurInfo {
@@ -21,11 +22,17 @@ float nz(vec2 p) {
 
 void main() {
     vec4 base = texture(InSampler, texCoord);
-    float d = texture(DepthSampler, texCoord).r;
+    if (Params.z < 0.5) {
+        fragColor = vec4(mix(base.rgb, texture(PrevSampler, texCoord).rgb, Params.w), base.a);
+        return;
+    }
+    bool rotOnly = Params.z < 1.5;
+    float d = rotOnly ? 1.0 : texture(DepthSampler, texCoord).r;
     vec4 pv = InvProj * vec4(texCoord * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
     pv /= pv.w;
     vec3 rel = (InvRot * vec4(pv.xyz, 0.0)).xyz;
-    vec4 pc = PrevProj * (PrevRot * vec4(rel + Delta.xyz, 1.0));
+    vec3 dl = rotOnly ? vec3(0.0) : Delta.xyz;
+    vec4 pc = PrevProj * (PrevRot * vec4(rel + dl, 1.0));
     vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
     vec2 vel = (texCoord - puv) * Params.x;
     float len = length(vel);
@@ -36,9 +43,9 @@ void main() {
     vel *= min(1.0, Params.y / len);
     float j = nz(gl_FragCoord.xy);
     vec3 sum = vec3(0.0);
-    for (int i = 0; i < 14; i++) {
-        float t = (float(i) + j) / 14.0 - 0.5;
+    for (int i = 0; i < 24; i++) {
+        float t = (float(i) + j) / 24.0 - 0.5;
         sum += texture(InSampler, texCoord + vel * t).rgb;
     }
-    fragColor = vec4(sum / 14.0, base.a);
+    fragColor = vec4(sum / 24.0, base.a);
 }

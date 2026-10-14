@@ -25,13 +25,16 @@ public class Blur {
 	static final int SZ = new Std140SizeCalculator().putMat4f().putMat4f().putMat4f().putMat4f().putVec4().putVec4().get();
 	static RenderPipeline pp;
 	static TextureTarget tmp;
+	static TextureTarget acc;
 	static MappableRingBuffer ub;
 	static final Matrix4f pr = new Matrix4f();
 	static final Matrix4f pj = new Matrix4f();
 	static double px, py, pz;
 	static boolean has;
+	static boolean cp;
 	static long lt;
 	public static float tst, tsx;
+	public static boolean frz;
 
 	static void init() {
 		pp = RenderPipeline.builder(RenderPipelines.POST_PROCESSING_SNIPPET)
@@ -39,6 +42,7 @@ public class Blur {
 				.withVertexShader(Identifier.withDefaultNamespace("core/screenquad"))
 				.withFragmentShader(Identifier.fromNamespaceAndPath("blurreborn", "post/motion_blur"))
 				.withSampler("InSampler")
+				.withSampler("PrevSampler")
 				.withSampler("DepthSampler")
 				.withUniform("BlurInfo", UniformType.UNIFORM_BUFFER)
 				.build();
@@ -65,8 +69,12 @@ public class Blur {
 		lt = now;
 		float dx = (float) (p.x - px), dy = (float) (p.y - py), dz = (float) (p.z - pz);
 		float dd = dx * dx + dy * dy + dz * dz;
-		boolean ok = has && dt > 0f && dt < 0.25f && dd < 64f && !(dd == 0f && rot.equals(pr, 1e-6f) && proj.equals(pj, 1e-6f));
-		if (ok) draw(rot, proj, dx, dy, dz, Cfg.exp() / dt);
+		boolean fine = has && dt > 0f && dt < 0.25f && dd < 64f;
+		boolean moved = !(dd == 0f && rot.equals(pr, 1e-6f) && proj.equals(pj, 1e-6f));
+		if (Cfg.c.mode == 0) {
+			if (fine) draw(rot, proj, dx, dy, dz, 0f, dt);
+			else seed();
+		} else if (fine && moved) draw(rot, proj, dx, dy, dz, Cfg.exp() / dt, dt);
 		pr.set(rot);
 		pj.set(proj);
 		px = p.x;
@@ -75,16 +83,36 @@ public class Blur {
 		has = true;
 	}
 
-	static void draw(Matrix4f rot, Matrix4f proj, float dx, float dy, float dz, float sc) {
+	static void seed() {
 		if (pp == null) init();
 		RenderTarget m = Minecraft.getInstance().getMainRenderTarget();
+		sz(m);
+		RenderSystem.getDevice().createCommandEncoder().copyTextureToTexture(m.getColorTexture(), acc.getColorTexture(), 0, 0, 0, 0, 0, m.width, m.height);
+	}
+
+	static void sz(RenderTarget m) {
 		int w = m.width, h = m.height;
 		if (tmp == null || tmp.width != w || tmp.height != h) {
 			if (tmp != null) tmp.destroyBuffers();
+			if (acc != null) acc.destroyBuffers();
 			tmp = new TextureTarget("blur reborn", w, h, false);
+			acc = new TextureTarget("blur reborn prev", w, h, false);
+			cp = true;
 		}
+	}
+
+	static void draw(Matrix4f rot, Matrix4f proj, float dx, float dy, float dz, float sc, float dt) {
+		if (pp == null) init();
+		RenderTarget m = Minecraft.getInstance().getMainRenderTarget();
+		int w = m.width, h = m.height;
+		cp = false;
+		sz(m);
 		CommandEncoder ce = RenderSystem.getDevice().createCommandEncoder();
 		ce.copyTextureToTexture(m.getColorTexture(), tmp.getColorTexture(), 0, 0, 0, 0, 0, w, h);
+		if (cp) {
+			ce.copyTextureToTexture(m.getColorTexture(), acc.getColorTexture(), 0, 0, 0, 0, 0, w, h);
+			return;
+		}
 		try (GpuBuffer.MappedView mv = ce.mapBuffer(ub.currentBuffer(), false, true)) {
 			Std140Builder.intoBuffer(mv.data())
 					.putMat4f(proj.invert(new Matrix4f()))
@@ -92,16 +120,18 @@ public class Blur {
 					.putMat4f(pr)
 					.putMat4f(pj)
 					.putVec4(dx, dy, dz, 0f)
-					.putVec4(Math.min(sc, 8f), Cfg.cap(), 0f, 0f);
+					.putVec4(Math.min(sc, 8f), Cfg.cap(), Cfg.c.mode, Cfg.keep(dt));
 		}
 		try (RenderPass rp = ce.createRenderPass(() -> "blur reborn", m.getColorTextureView(), OptionalInt.empty())) {
 			rp.setPipeline(pp);
 			RenderSystem.bindDefaultUniforms(rp);
 			rp.setUniform("BlurInfo", ub.currentBuffer());
 			rp.bindTexture("InSampler", tmp.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+			rp.bindTexture("PrevSampler", (Cfg.c.mode == 0 ? acc : tmp).getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
 			rp.bindTexture("DepthSampler", m.getDepthTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
 			rp.draw(0, 3);
 		}
 		ub.rotate();
+		if (Cfg.c.mode == 0 && !frz) ce.copyTextureToTexture(m.getColorTexture(), acc.getColorTexture(), 0, 0, 0, 0, 0, w, h);
 	}
 }

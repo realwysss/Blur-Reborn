@@ -9,6 +9,7 @@ import net.fabricmc.loader.api.FabricLoader;
 public class Cfg {
 	public boolean on = true;
 	public int pct = 50;
+	public int mode = 1;
 
 	static final Gson G = new GsonBuilder().setPrettyPrinting().create();
 	static final Path P = FabricLoader.getInstance().getConfigDir().resolve("blurreborn.json");
@@ -24,10 +25,12 @@ public class Cfg {
 			c = new Cfg();
 		}
 		c.pct = Math.max(0, Math.min(100, c.pct));
+		c.mode = Math.max(0, Math.min(2, c.mode));
 	}
 
 	public static void sv() {
 		c.pct = Math.max(0, Math.min(100, c.pct));
+		c.mode = Math.max(0, Math.min(2, c.mode));
 		try {
 			Files.writeString(P, G.toJson(c));
 		} catch (Exception e) {
@@ -40,6 +43,10 @@ public class Cfg {
 
 	public static float exp() {
 		return c.pct / 100f / 30f;
+	}
+
+	public static float keep(float dt) {
+		return (float) Math.exp(-dt / (0.05f * c.pct / 100f));
 	}
 
 	public static float cap() {
