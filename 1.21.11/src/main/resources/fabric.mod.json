@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "blurreborn",
+	"version": "${version}",
+	"name": "Blur Reborn",
+	"description": "smooth camera motion blur that uses the depth buffer, one cheap pass, strength slider. settings through mod menu and cloth config.",
+	"authors": ["realwysss"],
+	"contact": {"sources": "https://github.com/realwysss/Blur-Reborn"},
+	"license": "MIT",
+	"icon": "assets/blurreborn/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["dev.blrb.BlurClient"],
+		"modmenu": ["dev.blrb.ModmenuIntgr"]
+	},
+	"mixins": [
+		{
+			"config": "blurreborn.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"suggests": {
+		"modmenu": "*",
+		"cloth-config": "*"
+	},
+	"depends": {
+		"fabricloader": ">=0.16.0",
+		"minecraft": "1.21.11",
+		"java": ">=21"
+	}
+}

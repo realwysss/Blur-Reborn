@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "package": "dev.blrb.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "LvlRdrMxn"
+  ]
+}
