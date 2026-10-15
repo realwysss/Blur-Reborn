@@ -6,7 +6,7 @@
 	"description": "camera motion blur that follows the real camera path, half size cheap pass, strength slider and /motionblur command. settings through mod menu and cloth config.",
 	"authors": ["realwysss"],
 	"contact": {"sources": "https://github.com/realwysss/Blur-Reborn"},
-	"license": "MIT",
+	"license": "All-Rights-Reserved",
 	"icon": "assets/blurreborn/icon.png",
 	"environment": "client",
 	"entrypoints": {

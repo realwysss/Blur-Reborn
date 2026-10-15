@@ -53,8 +53,4 @@ standing still, off and on look the same:
 
 a mixin at the end of `LevelRenderer.renderLevel` (after the world, before the hand and the gui) saves the camera rotation and position every frame. it picks the saved camera from one shutter time ago and rebuilds the view direction of every pixel with it to get a velocity. a half size pass averages the frame along that velocity, then a second pass blends the result over the frame. the blur is capped at a share of the screen so fast flicks do not turn into mush.
 
-## tests
-
-`./gradlew runClientGameTest` builds a wall of colored blocks, fakes a steady camera turn and a steady sideways walk, and takes screenshots. it also opens the cloth config screen, checks the config and the `/motionblur` command.
-
-license: MIT
+all rights reserved. made by wysss.
