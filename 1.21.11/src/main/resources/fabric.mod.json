@@ -3,7 +3,7 @@
 	"id": "blurreborn",
 	"version": "${version}",
 	"name": "Blur Reborn",
-	"description": "smooth camera motion blur that uses the depth buffer, one cheap pass, strength slider. settings through mod menu and cloth config.",
+	"description": "camera motion blur that follows the real camera path, half size cheap pass, strength slider and /motionblur command. settings through mod menu and cloth config.",
 	"authors": ["realwysss"],
 	"contact": {"sources": "https://github.com/realwysss/Blur-Reborn"},
 	"license": "MIT",
@@ -25,6 +25,7 @@
 	},
 	"depends": {
 		"fabricloader": ">=0.16.0",
+		"fabric-command-api-v2": "*",
 		"minecraft": "1.21.11",
 		"java": ">=21"
 	}

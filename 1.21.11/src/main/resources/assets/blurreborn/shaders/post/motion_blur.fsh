@@ -1,7 +1,6 @@
 #version 330
 
 uniform sampler2D InSampler;
-uniform sampler2D PrevSampler;
 uniform sampler2D DepthSampler;
 
 layout(std140) uniform BlurInfo {
@@ -11,41 +10,38 @@ layout(std140) uniform BlurInfo {
     mat4 PrevProj;
     vec4 Delta;
     vec4 Params;
+    vec4 Extra;
 };
 
 in vec2 texCoord;
 out vec4 fragColor;
 
-float nz(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
-
 void main() {
-    vec4 base = texture(InSampler, texCoord);
-    if (Params.z < 0.5) {
-        fragColor = vec4(mix(base.rgb, texture(PrevSampler, texCoord).rgb, Params.w), base.a);
-        return;
-    }
-    bool rotOnly = Params.z < 1.5;
-    float d = rotOnly ? 1.0 : texture(DepthSampler, texCoord).r;
+    bool mv = Params.z > 0.5;
+    float d = mv ? texture(DepthSampler, texCoord).r : 1.0;
     vec4 pv = InvProj * vec4(texCoord * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
     pv /= pv.w;
     vec3 rel = (InvRot * vec4(pv.xyz, 0.0)).xyz;
-    vec3 dl = rotOnly ? vec3(0.0) : Delta.xyz;
+    vec3 dl = mv ? Delta.xyz : vec3(0.0);
     vec4 pc = PrevProj * (PrevRot * vec4(rel + dl, 1.0));
     vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
     vec2 vel = (texCoord - puv) * Params.x;
+    float r = clamp(length((texCoord - 0.5) * vec2(Extra.w, 1.0)) / 0.8, 0.0, 1.0);
+    vel *= mix(1.0, smoothstep(0.0, 1.0, r), Extra.y);
     float len = length(vel);
-    if (pc.w <= 0.0 || len < 0.0004) {
-        fragColor = base;
+    float px = len * Extra.z;
+    if (pc.w <= 0.0 || px < 0.5) {
+        fragColor = vec4(0.0);
         return;
     }
     vel *= min(1.0, Params.y / len);
-    float j = nz(gl_FragCoord.xy);
+    px = length(vel) * Extra.z * 0.5;
+    int n = int(clamp(ceil(px / 1.5), 3.0, Extra.x));
     vec3 sum = vec3(0.0);
     for (int i = 0; i < 24; i++) {
-        float t = (float(i) + j) / 24.0 - 0.5;
+        if (i >= n) break;
+        float t = (float(i) + 0.5) / float(n) - 0.5;
         sum += texture(InSampler, texCoord + vel * t).rgb;
     }
-    fragColor = vec4(sum / 24.0, base.a);
+    fragColor = vec4(sum / float(n), smoothstep(0.5, 2.0, px * 2.0));
 }

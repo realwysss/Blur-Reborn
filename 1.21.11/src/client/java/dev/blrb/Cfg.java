@@ -9,7 +9,10 @@ import net.fabricmc.loader.api.FabricLoader;
 public class Cfg {
 	public boolean on = true;
 	public int pct = 50;
-	public int mode = 1;
+	public boolean mv = false;
+	public int qual = 2;
+	public int lim = 8;
+	public int ctr = 0;
 
 	static final Gson G = new GsonBuilder().setPrettyPrinting().create();
 	static final Path P = FabricLoader.getInstance().getConfigDir().resolve("blurreborn.json");
@@ -25,12 +28,16 @@ public class Cfg {
 			c = new Cfg();
 		}
 		c.pct = Math.max(0, Math.min(100, c.pct));
-		c.mode = Math.max(0, Math.min(2, c.mode));
+		c.qual = Math.max(0, Math.min(3, c.qual));
+		c.lim = Math.max(1, Math.min(40, c.lim));
+		c.ctr = Math.max(0, Math.min(100, c.ctr));
 	}
 
 	public static void sv() {
 		c.pct = Math.max(0, Math.min(100, c.pct));
-		c.mode = Math.max(0, Math.min(2, c.mode));
+		c.qual = Math.max(0, Math.min(3, c.qual));
+		c.lim = Math.max(1, Math.min(40, c.lim));
+		c.ctr = Math.max(0, Math.min(100, c.ctr));
 		try {
 			Files.writeString(P, G.toJson(c));
 		} catch (Exception e) {
@@ -42,14 +49,14 @@ public class Cfg {
 	}
 
 	public static float exp() {
-		return c.pct / 100f / 30f;
-	}
-
-	public static float keep(float dt) {
-		return (float) Math.exp(-dt / (0.05f * c.pct / 100f));
+		return c.pct / 100f * 0.04f;
 	}
 
 	public static float cap() {
-		return 0.03f + 0.12f * c.pct / 100f;
+		return c.lim / 100f;
+	}
+
+	public static float smp() {
+		return new float[] {8f, 12f, 16f, 24f}[c.qual];
 	}
 }

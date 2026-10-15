@@ -4,47 +4,42 @@
 
 camera motion blur for minecraft 1.21.11. the whole picture blurs when you move the camera, your hand and the interface stay sharp.
 
-client side fabric mod, no fabric api needed. settings through mod menu with cloth config:
+client side fabric mod. settings through mod menu with cloth config, or with the command `/motionblur 0-100` (needs fabric api):
 
 - **motion blur on**: turn it off and the mod costs nothing
-- **mode**: turn (default), smooth or depth
-- **strength**: slider from 0% to 100% (default 50%). 0% is off, 50% looks like a normal camera, 100% is very strong
-
-## modes
-
-- **turn**: blurs everything on screen evenly when you turn the camera, sky included. looks like a real camera.
-- **smooth**: blends every frame with the one before it, so moving mobs and particles blur too. it can show a light double image on fast turns.
-- **depth**: the old one. it also blurs by distance when you walk, near blocks blur more than far ones.
+- **strength**: 0% to 100% (default 50%). it is how long the camera shutter stays open: 50% is 20 ms, 100% is 40 ms. 0% is off
+- **quality**: low, medium, high, ultra. the most samples the blur takes (8, 12, 16 or 24)
+- **max blur length**: the longest streak, as a share of the screen height (default 8%)
+- **clear center**: keeps the middle of the screen sharper and blurs the edges more, like a lens (default 0%)
+- **blur when moving**: also blurs by distance when you walk or strafe, not only when you turn (default off)
 
 ## download
 
-`blur-reborn-mc1.21.11-1.1.0.jar` on the releases page. minecraft 1.21.11, fabric loader 0.16 or newer.
+`blur-reborn-mc1.21.11-1.3.0.jar` on the releases page. minecraft 1.21.11, fabric loader 0.16 or newer.
+
+## how it looks
+
+the mod remembers where the camera was over the last few milliseconds and blurs along that exact path, like a real shutter. because of that the blur is smooth and the same at 60 or 240 fps, it does not flicker when the mouse updates unevenly. no ghosting, no double images.
 
 ## why it is light
 
-- one fullscreen pass, 24 samples per pixel with a little noise so there is no banding, plus one copy of the frame
-- when you stand still nothing is drawn (turn and depth)
+- the blur is drawn at half size and blended over the frame, so there is no full screen copy and only a quarter of the pixels take samples
+- short blurs use few samples, long ones use more, up to the quality setting
+- when you stand still nothing is drawn
 - when the setting is off nothing is drawn at all
-- the blur length is set by exposure time, not by frames, so it looks the same at 60 or 240 fps
 - teleports, dimension changes and long pauses are ignored so you never get a smear
 
 ## pictures
 
-same spot, mod off and on (turn mode). the camera turns at the same speed in every picture:
+same spot, mod off and on. the camera turns at the same speed in every picture:
 
 | off | 100% |
 |---|---|
 | ![turn off](screenshots/turn-off.png) | ![turn 100](screenshots/turn-100.png) |
 
-| 50% | smooth mode |
+| 50% | blur when moving (walking sideways) |
 |---|---|
-| ![turn 50](screenshots/turn-50.png) | ![smooth](screenshots/smooth.png) |
-
-walking sideways in depth mode (the wall and the ground blur by distance, the hand stays sharp):
-
-| off | 100% |
-|---|---|
-| ![strafe off](screenshots/strafe-off.png) | ![strafe 100](screenshots/strafe-100.png) |
+| ![turn 50](screenshots/turn-50.png) | ![move 100](screenshots/move-100.png) |
 
 standing still, off and on look the same:
 
@@ -56,10 +51,10 @@ standing still, off and on look the same:
 
 ## how it works
 
-a mixin at the end of `LevelRenderer.renderLevel` (after the world, before the hand and the gui). turn mode rebuilds the view direction of every pixel and moves it back with the previous frame's rotation to get a velocity, then averages the frame along that velocity. depth mode does the same with the depth buffer and the camera position. smooth mode mixes the frame with the previous one. the blur is capped at a share of the screen so fast flicks do not turn into mush.
+a mixin at the end of `LevelRenderer.renderLevel` (after the world, before the hand and the gui) saves the camera rotation and position every frame. it picks the saved camera from one shutter time ago and rebuilds the view direction of every pixel with it to get a velocity. a half size pass averages the frame along that velocity, then a second pass blends the result over the frame. the blur is capped at a share of the screen so fast flicks do not turn into mush.
 
 ## tests
 
-`./gradlew runClientGameTest` builds a wall of colored blocks, fakes a steady camera turn and a steady sideways walk, and takes screenshots in every mode. it also opens the cloth config screen and checks the config.
+`./gradlew runClientGameTest` builds a wall of colored blocks, fakes a steady camera turn and a steady sideways walk, and takes screenshots. it also opens the cloth config screen, checks the config and the `/motionblur` command.
 
 license: MIT

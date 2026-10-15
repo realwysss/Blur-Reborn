@@ -3,38 +3,39 @@ package dev.blrb;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
+import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.FilterMode;
+import java.util.ArrayDeque;
 import java.util.OptionalInt;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.MappableRingBuffer;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 
 public class Blur {
-	static final int SZ = new Std140SizeCalculator().putMat4f().putMat4f().putMat4f().putMat4f().putVec4().putVec4().get();
+	record S(long t, Quaternionf q, double x, double y, double z) {
+	}
+
+	static final int SZ = new Std140SizeCalculator().putMat4f().putMat4f().putMat4f().putMat4f().putVec4().putVec4().putVec4().get();
+	static final long T0 = System.nanoTime();
+	static final ArrayDeque<S> hs = new ArrayDeque<>();
 	static RenderPipeline pp;
-	static TextureTarget tmp;
-	static TextureTarget acc;
+	static RenderPipeline pm;
+	static TextureTarget half;
 	static MappableRingBuffer ub;
-	static final Matrix4f pr = new Matrix4f();
-	static final Matrix4f pj = new Matrix4f();
-	static double px, py, pz;
-	static boolean has;
-	static boolean cp;
-	static long lt;
-	public static float tst, tsx;
-	public static boolean frz;
+	public static float spin, tsx;
+	public static int fr;
 
 	static void init() {
 		pp = RenderPipeline.builder(RenderPipelines.POST_PROCESSING_SNIPPET)
@@ -42,96 +43,96 @@ public class Blur {
 				.withVertexShader(Identifier.withDefaultNamespace("core/screenquad"))
 				.withFragmentShader(Identifier.fromNamespaceAndPath("blurreborn", "post/motion_blur"))
 				.withSampler("InSampler")
-				.withSampler("PrevSampler")
 				.withSampler("DepthSampler")
 				.withUniform("BlurInfo", UniformType.UNIFORM_BUFFER)
+				.build();
+		pm = RenderPipeline.builder(RenderPipelines.POST_PROCESSING_SNIPPET)
+				.withLocation(Identifier.fromNamespaceAndPath("blurreborn", "pipeline/motion_mix"))
+				.withVertexShader(Identifier.withDefaultNamespace("core/screenquad"))
+				.withFragmentShader(Identifier.fromNamespaceAndPath("blurreborn", "post/motion_mix"))
+				.withSampler("HalfSampler")
+				.withBlend(BlendFunction.TRANSLUCENT)
 				.build();
 		ub = new MappableRingBuffer(() -> "blur reborn ubo", 130, SZ);
 	}
 
+	static float ang(Quaternionf a, Quaternionf b) {
+		Quaternionf q = new Quaternionf(a).mul(new Quaternionf(b).conjugate());
+		return 2f * (float) Math.sqrt((double) q.x * q.x + (double) q.y * q.y + (double) q.z * q.z);
+	}
+
 	public static void run(Matrix4f rot, Matrix4f proj, Camera cam) {
+		fr++;
 		if (!Cfg.on()) {
-			has = false;
+			hs.clear();
 			return;
-		}
-		Vec3 p = cam.position();
-		if (tst != 0f || tsx != 0f) {
-			pr.set(rot).rotateLocalY(tst);
-			pj.set(proj);
-			px = p.x - tsx;
-			py = p.y;
-			pz = p.z;
-			has = true;
-			lt = System.nanoTime() - 16666667L;
 		}
 		long now = System.nanoTime();
-		float dt = (now - lt) / 1e9f;
-		lt = now;
-		float dx = (float) (p.x - px), dy = (float) (p.y - py), dz = (float) (p.z - pz);
-		float dd = dx * dx + dy * dy + dz * dz;
-		boolean fine = has && dt > 0f && dt < 0.25f && dd < 64f;
-		boolean moved = !(dd == 0f && rot.equals(pr, 1e-6f) && proj.equals(pj, 1e-6f));
-		if (Cfg.c.mode == 0) {
-			if (fine) draw(rot, proj, dx, dy, dz, 0f, dt);
-			else seed();
-		} else if (fine && moved) draw(rot, proj, dx, dy, dz, Cfg.exp() / dt, dt);
-		pr.set(rot);
-		pj.set(proj);
-		px = p.x;
-		py = p.y;
-		pz = p.z;
-		has = true;
-	}
-
-	static void seed() {
-		if (pp == null) init();
-		RenderTarget m = Minecraft.getInstance().getMainRenderTarget();
-		sz(m);
-		RenderSystem.getDevice().createCommandEncoder().copyTextureToTexture(m.getColorTexture(), acc.getColorTexture(), 0, 0, 0, 0, 0, m.width, m.height);
-	}
-
-	static void sz(RenderTarget m) {
-		int w = m.width, h = m.height;
-		if (tmp == null || tmp.width != w || tmp.height != h) {
-			if (tmp != null) tmp.destroyBuffers();
-			if (acc != null) acc.destroyBuffers();
-			tmp = new TextureTarget("blur reborn", w, h, false);
-			acc = new TextureTarget("blur reborn prev", w, h, false);
-			cp = true;
+		double sec = (now - T0) / 1e9;
+		Matrix4f cur = spin != 0f ? new Matrix4f(rot).rotateLocalY((float) (spin * sec)) : rot;
+		Vec3 p = cam.position();
+		S s = new S(now, new Quaternionf().setFromNormalized(cur), p.x + tsx * sec, p.y, p.z);
+		S last = hs.peekLast();
+		if (last != null) {
+			double ddx = s.x - last.x, ddy = s.y - last.y, ddz = s.z - last.z;
+			if (now - last.t > 250000000L || ddx * ddx + ddy * ddy + ddz * ddz > 64) hs.clear();
 		}
+		hs.addLast(s);
+		while (hs.size() > 2 && now - hs.peekFirst().t > 150000000L) hs.removeFirst();
+		long tt = now - (long) (Cfg.exp() * 1e9f);
+		S a = null, b = null;
+		for (S o : hs) {
+			if (o.t <= tt) a = o;
+			else {
+				b = o;
+				break;
+			}
+		}
+		if (a == null) a = hs.peekFirst();
+		if (b == null || a == s) return;
+		float f = b.t == a.t ? 0f : Math.max(0f, Math.min(1f, (float) (tt - a.t) / (b.t - a.t)));
+		Quaternionf qo = new Quaternionf(a.q).slerp(b.q, f);
+		double ox = a.x + (b.x - a.x) * f, oy = a.y + (b.y - a.y) * f, oz = a.z + (b.z - a.z) * f;
+		float dx = (float) (s.x - ox), dy = (float) (s.y - oy), dz = (float) (s.z - oz);
+		RenderTarget m = Minecraft.getInstance().getMainRenderTarget();
+		float px = ang(s.q, qo) * proj.m11() * m.height * 0.5f;
+		boolean mv = Cfg.c.mv && dx * dx + dy * dy + dz * dz > 1e-8f;
+		if (px < 0.75f && !mv) return;
+		draw(m, cur, proj, new Matrix4f().rotation(qo), mv ? dx : 0f, mv ? dy : 0f, mv ? dz : 0f);
 	}
 
-	static void draw(Matrix4f rot, Matrix4f proj, float dx, float dy, float dz, float sc, float dt) {
+	static void draw(RenderTarget m, Matrix4f rot, Matrix4f proj, Matrix4f pr, float dx, float dy, float dz) {
 		if (pp == null) init();
-		RenderTarget m = Minecraft.getInstance().getMainRenderTarget();
-		int w = m.width, h = m.height;
-		cp = false;
-		sz(m);
+		int w = Math.max(1, m.width / 2), h = Math.max(1, m.height / 2);
+		if (half == null || half.width != w || half.height != h) {
+			if (half != null) half.destroyBuffers();
+			half = new TextureTarget("blur reborn half", w, h, false);
+		}
 		CommandEncoder ce = RenderSystem.getDevice().createCommandEncoder();
-		ce.copyTextureToTexture(m.getColorTexture(), tmp.getColorTexture(), 0, 0, 0, 0, 0, w, h);
-		if (cp) {
-			ce.copyTextureToTexture(m.getColorTexture(), acc.getColorTexture(), 0, 0, 0, 0, 0, w, h);
-			return;
-		}
 		try (GpuBuffer.MappedView mv = ce.mapBuffer(ub.currentBuffer(), false, true)) {
 			Std140Builder.intoBuffer(mv.data())
 					.putMat4f(proj.invert(new Matrix4f()))
 					.putMat4f(rot.invert(new Matrix4f()))
 					.putMat4f(pr)
-					.putMat4f(pj)
+					.putMat4f(proj)
 					.putVec4(dx, dy, dz, 0f)
-					.putVec4(Math.min(sc, 8f), Cfg.cap(), Cfg.c.mode, Cfg.keep(dt));
+					.putVec4(1f, Cfg.cap(), Cfg.c.mv ? 1f : 0f, 0f)
+					.putVec4(Cfg.smp(), Cfg.c.ctr / 100f, m.height, (float) m.width / m.height);
 		}
-		try (RenderPass rp = ce.createRenderPass(() -> "blur reborn", m.getColorTextureView(), OptionalInt.empty())) {
+		try (RenderPass rp = ce.createRenderPass(() -> "blur reborn", half.getColorTextureView(), OptionalInt.of(0))) {
 			rp.setPipeline(pp);
 			RenderSystem.bindDefaultUniforms(rp);
 			rp.setUniform("BlurInfo", ub.currentBuffer());
-			rp.bindTexture("InSampler", tmp.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
-			rp.bindTexture("PrevSampler", (Cfg.c.mode == 0 ? acc : tmp).getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+			rp.bindTexture("InSampler", m.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
 			rp.bindTexture("DepthSampler", m.getDepthTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
 			rp.draw(0, 3);
 		}
 		ub.rotate();
-		if (Cfg.c.mode == 0 && !frz) ce.copyTextureToTexture(m.getColorTexture(), acc.getColorTexture(), 0, 0, 0, 0, 0, w, h);
+		try (RenderPass rp = ce.createRenderPass(() -> "blur reborn mix", m.getColorTextureView(), OptionalInt.empty())) {
+			rp.setPipeline(pm);
+			RenderSystem.bindDefaultUniforms(rp);
+			rp.bindTexture("HalfSampler", half.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+			rp.draw(0, 3);
+		}
 	}
 }
