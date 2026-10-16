@@ -4,7 +4,7 @@
 
 camera motion blur for minecraft 1.21.11. the whole picture blurs when you move the camera, your hand and the interface stay sharp.
 
-client side fabric mod. settings through mod menu with cloth config, or with the command `/motionblur 0-100` (needs fabric api):
+client side fabric mod. settings with the menu (key **N** or mod menu, needs [Wysss Library](https://github.com/realwysss/Wysss-Library)), or with the command `/motionblur 0-100` (needs fabric api):
 
 - **motion blur on**: turn it off and the mod costs nothing
 - **strength**: 0% to 100% (default 50%). it is how long the camera shutter stays open: 50% is 20 ms, 100% is 40 ms. 0% is off
