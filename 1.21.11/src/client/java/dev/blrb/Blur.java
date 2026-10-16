@@ -56,6 +56,10 @@ public class Blur {
 		ub = new MappableRingBuffer(() -> "blur reborn ubo", 130, SZ);
 	}
 
+	static float mvOn(Matrix4f pr, float dx, float dy, float dz) {
+		return dx != 0f || dy != 0f || dz != 0f ? 1f : 0f;
+	}
+
 	static float ang(Quaternionf a, Quaternionf b) {
 		Quaternionf q = new Quaternionf(a).mul(new Quaternionf(b).conjugate());
 		return 2f * (float) Math.sqrt((double) q.x * q.x + (double) q.y * q.y + (double) q.z * q.z);
@@ -78,7 +82,7 @@ public class Blur {
 			if (now - last.t > 250000000L || ddx * ddx + ddy * ddy + ddz * ddz > 64) hs.clear();
 		}
 		hs.addLast(s);
-		while (hs.size() > 2 && now - hs.peekFirst().t > 150000000L) hs.removeFirst();
+		while (hs.size() > 2 && now - hs.peekFirst().t > 250000000L) hs.removeFirst();
 		long tt = now - (long) (Cfg.exp() * 1e9f);
 		S a = null, b = null;
 		for (S o : hs) {
@@ -96,7 +100,7 @@ public class Blur {
 		float dx = (float) (s.x - ox), dy = (float) (s.y - oy), dz = (float) (s.z - oz);
 		RenderTarget m = Minecraft.getInstance().getMainRenderTarget();
 		float px = ang(s.q, qo) * proj.m11() * m.height * 0.5f;
-		boolean mv = Cfg.c.mv && dx * dx + dy * dy + dz * dz > 1e-8f;
+		boolean mv = Cfg.c.mv && !cam.isDetached() && dx * dx + dy * dy + dz * dz > 1e-8f;
 		if (px < 0.75f && !mv) return;
 		draw(m, cur, proj, new Matrix4f().rotation(qo), mv ? dx : 0f, mv ? dy : 0f, mv ? dz : 0f);
 	}
@@ -116,7 +120,7 @@ public class Blur {
 					.putMat4f(pr)
 					.putMat4f(proj)
 					.putVec4(dx, dy, dz, 0f)
-					.putVec4(1f, Cfg.cap(), Cfg.c.mv ? 1f : 0f, 0f)
+					.putVec4(1f, Cfg.cap(), mvOn(pr, dx, dy, dz), 0f)
 					.putVec4(Cfg.smp(), Cfg.c.ctr / 100f, m.height, (float) m.width / m.height);
 		}
 		try (RenderPass rp = ce.createRenderPass(() -> "blur reborn", half.getColorTextureView(), OptionalInt.of(0))) {

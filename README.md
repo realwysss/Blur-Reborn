@@ -15,7 +15,7 @@ client side fabric mod. settings through mod menu with cloth config, or with the
 
 ## download
 
-`blur-reborn-mc1.21.11-1.3.0.jar` on the releases page. minecraft 1.21.11, fabric loader 0.16 or newer.
+`blur-reborn-mc1.21.11-1.4.0.jar` on the releases page. minecraft 1.21.11, fabric loader 0.16 or newer.
 
 ## how it looks
 
@@ -54,3 +54,5 @@ standing still, off and on look the same:
 a mixin at the end of `LevelRenderer.renderLevel` (after the world, before the hand and the gui) saves the camera rotation and position every frame. it picks the saved camera from one shutter time ago and rebuilds the view direction of every pixel with it to get a velocity. a half size pass averages the frame along that velocity, then a second pass blends the result over the frame. the blur is capped at a share of the screen so fast flicks do not turn into mush.
 
 all rights reserved. made by wysss.
+
+the menu needs [Wysss Library](https://github.com/realwysss/Wysss-Library) installed.

@@ -3,7 +3,7 @@
 	"id": "blurreborn",
 	"version": "${version}",
 	"name": "Blur Reborn",
-	"description": "camera motion blur that follows the real camera path, half size cheap pass, strength slider and /motionblur command. settings through mod menu and cloth config.",
+	"description": "camera motion blur that follows the real camera path, half size cheap pass, strength slider and /motionblur command. menu needs Wysss Library (key N).",
 	"authors": ["realwysss"],
 	"contact": {"sources": "https://github.com/realwysss/Blur-Reborn"},
 	"license": "All-Rights-Reserved",
@@ -21,7 +21,7 @@
 	],
 	"suggests": {
 		"modmenu": "*",
-		"cloth-config": "*"
+		"wysslib": "*"
 	},
 	"depends": {
 		"fabricloader": ">=0.16.0",
